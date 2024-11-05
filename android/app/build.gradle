@@ -42,3 +42,11 @@ android {
 flutter {
     source = "../.."
 }
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }  // Adding JitPack repository here
+    }
+}
