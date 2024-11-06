@@ -14,7 +14,7 @@ class ControllerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Robot Controller',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue),
       ),
       home: const ControllerScreen(),
       debugShowCheckedModeBanner: false,
@@ -36,6 +36,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   ServerSocket? server;
   final int port = 8080;
   List<Socket> clients = [];
+  Socket? activeClient;
 
   @override
   void initState() {
@@ -66,11 +67,11 @@ class _ControllerScreenState extends State<ControllerScreen> {
           clients.add(client);
           isConnected = true;
           connectionStatus = 'Connected!';
+          activeClient = client;
         });
 
         client.listen(
           (data) {
-            // Handle incoming data
             print('Received: ${String.fromCharCodes(data)}');
           },
           onError: (error) {
@@ -85,7 +86,6 @@ class _ControllerScreenState extends State<ControllerScreen> {
       setState(() {
         connectionStatus = 'Server Error: $e';
       });
-      print('Error starting server: $e');
     }
   }
 
@@ -99,74 +99,112 @@ class _ControllerScreenState extends State<ControllerScreen> {
     });
     client.close();
   }
+
   void sendCharacter(String character) {
-    for (var client in clients) {
-      client.write(character);
+    if (isConnected && activeClient != null) {
+      activeClient!.write(character);
+    } else {
+      setState(() {
+        connectionStatus = 'Not connected to ESP32';
+      });
     }
   }
- 
+
+  void handleButtonPress(String character) {
+    sendCharacter(character);
+  }
+
+  void handleButtonRelease() {
+    sendCharacter('S'); // Stop signal
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Center(child: Text('Bot Controller', style: TextStyle(fontWeight: FontWeight.bold))),
+        title: const Text('Bot Controller'),
+        centerTitle: true,
       ),
-      body: Column(
+      body: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8.0),
-            color: isConnected ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
-            child: Column(
-              children: [
-                if (!isConnected)
-                  Text(
-                    'IP Address: $ipAddress: $port',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                Text(
-                  connectionStatus,
-                  style: TextStyle(
-                    color: isConnected ? Colors.green : Colors.orange,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
-            child: Stack(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Positioned(
-                  left: 20,
-                  bottom: 20,
-                  child: GestureDetector(
-                    onTap: () => sendCharacter('W'), // Send 'W' for joystick press
-                    child: const JoystickControl(),
-                  ),
+                buildConnectionStatus(),
+                const SizedBox(height: 20),
+                const Text(
+                  'Controls',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blueAccent),
                 ),
-                Positioned(
-                  right: 20,
-                  bottom: 20,
-                  child: Column(
-                    children: [
-                      GestureDetector(
-                        onTap: () => {sendCharacter('A')}, // Send 'A' for Button 1
-                        child: const CustomButton(character: 'A', color: Colors.red),
-                      ),
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: () => sendCharacter('B'), // Send 'B' for Button 2
-                        child: const CustomButton(character: 'B', color: Colors.green),
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 20),
+                buildControlButtons(),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget buildConnectionStatus() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isConnected ? Colors.green.shade200 : Colors.red.shade200,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'IP Address: $ipAddress:$port',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(
+            connectionStatus,
+            style: TextStyle(
+              color: isConnected ? Colors.green : Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildControlButtons() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTapDown: (_) => handleButtonPress('W'),
+          onTapUp: (_) => handleButtonRelease(),
+          onTapCancel: () => handleButtonRelease(),
+          child: const CustomButton(character: 'Forward', color: Colors.blue),
+        ),
+        const SizedBox(height: 15),
+        GestureDetector(
+          onTapDown: (_) => handleButtonPress('A'),
+          onTapUp: (_) => handleButtonRelease(),
+          onTapCancel: () => handleButtonRelease(),
+          child: const CustomButton(character: 'Left', color: Colors.orange),
+        ),
+        const SizedBox(height: 15),
+        GestureDetector(
+          onTapDown: (_) => handleButtonPress('D'),
+          onTapUp: (_) => handleButtonRelease(),
+          onTapCancel: () => handleButtonRelease(),
+          child: const CustomButton(character: 'Right', color: Colors.purple),
+        ),
+        const SizedBox(height: 15),
+        GestureDetector(
+          onTapDown: (_) => handleButtonPress('S'),
+          onTapUp: (_) => handleButtonRelease(),
+          onTapCancel: () => handleButtonRelease(),
+          child: const CustomButton(character: 'Back', color: Colors.red),
+        ),
+      ],
     );
   }
 
@@ -180,28 +218,6 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 }
 
-class JoystickControl extends StatelessWidget {
-  const JoystickControl({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.5),
-        shape: BoxShape.circle,
-      ),
-      child: const Center(
-        child: Text(
-          'W',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
-
 class CustomButton extends StatelessWidget {
   final String character;
   final Color color;
@@ -211,16 +227,23 @@ class CustomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 80,
-      height: 80,
+      width: 100,
+      height: 100,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(8),
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            offset: Offset(0, 4),
+            blurRadius: 4,
+          ),
+        ],
       ),
       child: Center(
         child: Text(
           character,
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          style: const TextStyle(fontSize: 20, color: Colors.white),
         ),
       ),
     );
