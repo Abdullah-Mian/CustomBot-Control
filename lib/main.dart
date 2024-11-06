@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:network_info_plus/network_info_plus.dart';
@@ -18,6 +17,7 @@ class ControllerApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: const ControllerScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -31,9 +31,8 @@ class ControllerScreen extends StatefulWidget {
 
 class _ControllerScreenState extends State<ControllerScreen> {
   String ipAddress = 'Loading...';
-  String connectionStatus = 'Waiting for ESP32...';
+  String connectionStatus = 'Waiting to connect...';
   bool isConnected = false;
-  List<Widget> controls = [];
   ServerSocket? server;
   final int port = 8080;
   List<Socket> clients = [];
@@ -66,7 +65,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
         setState(() {
           clients.add(client);
           isConnected = true;
-          connectionStatus = 'ESP32 Connected!';
+          connectionStatus = 'Connected!';
         });
 
         client.listen(
@@ -100,36 +99,18 @@ class _ControllerScreenState extends State<ControllerScreen> {
     });
     client.close();
   }
-
-  void addJoystick() {
-    setState(() {
-      controls.add(
-        Draggable(
-          feedback: const JoystickControl(),
-          childWhenDragging: Container(),
-          child: const JoystickControl(),
-        ),
-      );
-    });
+  void sendCharacter(String character) {
+    for (var client in clients) {
+      client.write(character);
+    }
   }
-
-  void addButton() {
-    setState(() {
-      controls.add(
-        Draggable(
-          feedback: const CustomButton(),
-          childWhenDragging: Container(),
-          child: const CustomButton(),
-        ),
-      );
-    });
-  }
+ 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Robot Controller'),
+        title: const Center(child: Text('Bot Controller', style: TextStyle(fontWeight: FontWeight.bold))),
       ),
       body: Column(
         children: [
@@ -138,10 +119,11 @@ class _ControllerScreenState extends State<ControllerScreen> {
             color: isConnected ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
             child: Column(
               children: [
-                if (!isConnected) Text(
-                  'IP Address: $ipAddress\nPort: $port',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                if (!isConnected)
+                  Text(
+                    'IP Address: $ipAddress: $port',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 Text(
                   connectionStatus,
                   style: TextStyle(
@@ -153,27 +135,35 @@ class _ControllerScreenState extends State<ControllerScreen> {
             ),
           ),
           Expanded(
-            child: DragTarget<int>(
-              builder: (context, _, __) {
-                return Stack(
-                  children: controls,
-                );
-              },
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 20,
+                  bottom: 20,
+                  child: GestureDetector(
+                    onTap: () => sendCharacter('W'), // Send 'W' for joystick press
+                    child: const JoystickControl(),
+                  ),
+                ),
+                Positioned(
+                  right: 20,
+                  bottom: 20,
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () => {sendCharacter('A')}, // Send 'A' for Button 1
+                        child: const CustomButton(character: 'A', color: Colors.red),
+                      ),
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: () => sendCharacter('B'), // Send 'B' for Button 2
+                        child: const CustomButton(character: 'B', color: Colors.green),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            onPressed: addJoystick,
-            child: const Icon(Icons.gamepad),
-          ),
-          const SizedBox(width: 10),
-          FloatingActionButton(
-            onPressed: addButton,
-            child: const Icon(Icons.smart_button),
           ),
         ],
       ),
@@ -190,94 +180,47 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 }
 
-class JoystickControl extends StatefulWidget {
+class JoystickControl extends StatelessWidget {
   const JoystickControl({super.key});
 
   @override
-  State<JoystickControl> createState() => _JoystickControlState();
-}
-
-class _JoystickControlState extends State<JoystickControl> {
-  double size = 100;
-  String character = 'W';
-
-  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onScaleUpdate: (details) {
-        setState(() {
-          size = size * details.scale;
-        });
-      },
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.5),
-          shape: BoxShape.circle,
-        ),
-        child: Center(
-          child: TextField(
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              hintText: 'Key',
-            ),
-            onChanged: (value) {
-              if (value.isNotEmpty) {
-                setState(() {
-                  character = value[0];
-                });
-              }
-            },
-          ),
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.5),
+        shape: BoxShape.circle,
+      ),
+      child: const Center(
+        child: Text(
+          'W',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 }
 
-class CustomButton extends StatefulWidget {
-  const CustomButton({super.key});
+class CustomButton extends StatelessWidget {
+  final String character;
+  final Color color;
 
-  @override
-  State<CustomButton> createState() => _CustomButtonState();
-}
-
-class _CustomButtonState extends State<CustomButton> {
-  double width = 80;
-  double height = 80;
-  String character = 'X';
+  const CustomButton({super.key, required this.character, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onScaleUpdate: (details) {
-        setState(() {
-          width = width * details.scale;
-          height = height * details.scale;
-        });
-      },
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: TextField(
-            textAlign: TextAlign.center,
-            decoration: const InputDecoration(
-              hintText: 'Key',
-            ),
-            onChanged: (value) {
-              if (value.isNotEmpty) {
-                setState(() {
-                  character = value[0];
-                });
-              }
-            },
-          ),
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Text(
+          character,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
     );
