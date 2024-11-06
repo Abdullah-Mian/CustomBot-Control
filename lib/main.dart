@@ -1,125 +1,285 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:network_info_plus/network_info_plus.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ControllerApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ControllerApp extends StatelessWidget {
+  const ControllerApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Robot Controller',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+        primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const ControllerScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class ControllerScreen extends StatefulWidget {
+  const ControllerScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<ControllerScreen> createState() => _ControllerScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _ControllerScreenState extends State<ControllerScreen> {
+  String ipAddress = 'Loading...';
+  String connectionStatus = 'Waiting for ESP32...';
+  bool isConnected = false;
+  List<Widget> controls = [];
+  ServerSocket? server;
+  final int port = 8080;
+  List<Socket> clients = [];
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    initializeServer();
+    getIPAddress();
+  }
+
+  Future<void> getIPAddress() async {
+    try {
+      final info = NetworkInfo();
+      final hotspotIp = await info.getWifiIP();
+      setState(() {
+        ipAddress = hotspotIp ?? 'Not found';
+      });
+    } catch (e) {
+      setState(() {
+        ipAddress = 'Error getting IP';
+      });
+    }
+  }
+
+  Future<void> initializeServer() async {
+    try {
+      server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
+      server!.listen((Socket client) {
+        setState(() {
+          clients.add(client);
+          isConnected = true;
+          connectionStatus = 'ESP32 Connected!';
+        });
+
+        client.listen(
+          (data) {
+            // Handle incoming data
+            print('Received: ${String.fromCharCodes(data)}');
+          },
+          onError: (error) {
+            handleDisconnection(client);
+          },
+          onDone: () {
+            handleDisconnection(client);
+          },
+        );
+      });
+    } catch (e) {
+      setState(() {
+        connectionStatus = 'Server Error: $e';
+      });
+      print('Error starting server: $e');
+    }
+  }
+
+  void handleDisconnection(Socket client) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      clients.remove(client);
+      if (clients.isEmpty) {
+        isConnected = false;
+        connectionStatus = 'ESP32 Disconnected - Waiting for reconnection...';
+      }
+    });
+    client.close();
+  }
+
+  void addJoystick() {
+    setState(() {
+      controls.add(
+        Draggable(
+          feedback: const JoystickControl(),
+          childWhenDragging: Container(),
+          child: const JoystickControl(),
+        ),
+      );
+    });
+  }
+
+  void addButton() {
+    setState(() {
+      controls.add(
+        Draggable(
+          feedback: const CustomButton(),
+          childWhenDragging: Container(),
+          child: const CustomButton(),
+        ),
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Robot Controller'),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8.0),
+            color: isConnected ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+            child: Column(
+              children: [
+                if (!isConnected) Text(
+                  'IP Address: $ipAddress\nPort: $port',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  connectionStatus,
+                  style: TextStyle(
+                    color: isConnected ? Colors.green : Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          Expanded(
+            child: DragTarget<int>(
+              builder: (context, _, __) {
+                return Stack(
+                  children: controls,
+                );
+              },
             ),
-          ],
+          ),
+        ],
+      ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: addJoystick,
+            child: const Icon(Icons.gamepad),
+          ),
+          const SizedBox(width: 10),
+          FloatingActionButton(
+            onPressed: addButton,
+            child: const Icon(Icons.smart_button),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    server?.close();
+    for (var client in clients) {
+      client.close();
+    }
+    super.dispose();
+  }
+}
+
+class JoystickControl extends StatefulWidget {
+  const JoystickControl({super.key});
+
+  @override
+  State<JoystickControl> createState() => _JoystickControlState();
+}
+
+class _JoystickControlState extends State<JoystickControl> {
+  double size = 100;
+  String character = 'W';
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onScaleUpdate: (details) {
+        setState(() {
+          size = size * details.scale;
+        });
+      },
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.5),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: TextField(
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              hintText: 'Key',
+            ),
+            onChanged: (value) {
+              if (value.isNotEmpty) {
+                setState(() {
+                  character = value[0];
+                });
+              }
+            },
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+}
+
+class CustomButton extends StatefulWidget {
+  const CustomButton({super.key});
+
+  @override
+  State<CustomButton> createState() => _CustomButtonState();
+}
+
+class _CustomButtonState extends State<CustomButton> {
+  double width = 80;
+  double height = 80;
+  String character = 'X';
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onScaleUpdate: (details) {
+        setState(() {
+          width = width * details.scale;
+          height = height * details.scale;
+        });
+      },
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: TextField(
+            textAlign: TextAlign.center,
+            decoration: const InputDecoration(
+              hintText: 'Key',
+            ),
+            onChanged: (value) {
+              if (value.isNotEmpty) {
+                setState(() {
+                  character = value[0];
+                });
+              }
+            },
+          ),
+        ),
+      ),
     );
   }
 }
