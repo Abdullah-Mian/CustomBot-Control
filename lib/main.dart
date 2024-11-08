@@ -52,7 +52,7 @@ class _ControllerScreenState extends State<ControllerScreen> {
   String connectionStatus = 'Waiting to connect...';
   bool isConnected = false;
   ServerSocket? server;
-  final int port = 50123; // Changed port number
+  final int port = 5000; // Changed port number
   List<Socket> clients = [];
   Socket? activeClient;
   Map<String, String> buttonChars = {
