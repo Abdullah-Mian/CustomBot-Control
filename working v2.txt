@@ -225,31 +225,37 @@ class _ControllerScreenState extends State<ControllerScreen>
       body: Stack(
         children: [
           // Left side controls
-          Positioned(
-            left: 20,
-            top: 20,
+          Center(
             child: Column(
               children: [
+                const SizedBox(height: 20),
                 Switch(
                   value: isServerActive,
                   onChanged: (value) => toggleServer(),
                 ),
-                const SizedBox(height: 10),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () => showSettingsDialog(context,setState),
-                ),
-                const SizedBox(height: 10),
-                IconButton(
-                  icon: const Icon(Icons.gamepad),
-                  onPressed: () => showJoystickSelector(setState),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 10),
+                    IconButton(
+                      icon: const Icon(Icons.settings),
+                      onPressed: () => showSettingsDialog(context,setState),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.gamepad),
+                      onPressed:()=> showJoystickSelector(setState),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          
+
           // Main controller area
-          Center(
+          Positioned(
+            left: 20,
+            bottom: 20,
             child: joystickStyles[selectedJoystickStyle](
               context,
               {
@@ -261,12 +267,12 @@ class _ControllerScreenState extends State<ControllerScreen>
               },
             ),
           ),
-          
+
           // Right side action buttons
           Positioned(
             right: 20,
             bottom: 20,
-            child: Column(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ActionButton(
@@ -274,7 +280,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                   color: Colors.green,
                   onPressed: () => sendCharacter(buttonChars['action1']!),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(width: 20),
                 ActionButton(
                   label: 'Y',
                   color: Colors.blue,
