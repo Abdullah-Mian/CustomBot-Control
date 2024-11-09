@@ -1,3 +1,7 @@
+import 'package:custombot_control/action_button.dart';
+import 'package:custombot_control/classic_joystick.dart';
+import 'package:custombot_control/minimal_joystick.dart';
+import 'package:custombot_control/modern_joystick.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
@@ -6,7 +10,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Force landscape
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -20,19 +23,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ControllerApp();
-  }
-}
-
-class ControllerApp extends StatelessWidget {
-  const ControllerApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Robot Controller',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSwatch(primarySwatch: Colors.blue),
+      theme: ThemeData.dark().copyWith(
+        primaryColor: Colors.blue,
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1E1E1E),
+          elevation: 0,
+        ),
       ),
       home: const ControllerScreen(),
       debugShowCheckedModeBanner: false,
@@ -47,14 +46,18 @@ class ControllerScreen extends StatefulWidget {
   State<ControllerScreen> createState() => _ControllerScreenState();
 }
 
-class _ControllerScreenState extends State<ControllerScreen> {
+class _ControllerScreenState extends State<ControllerScreen> 
+    with SingleTickerProviderStateMixin {
   String ipAddress = 'Loading...';
-  String connectionStatus = 'Waiting to connect...';
   bool isConnected = false;
+  bool isServerActive = true;
   ServerSocket? server;
-  final int port = 5000; // Changed port number
+  final int port = 5000;
   List<Socket> clients = [];
   Socket? activeClient;
+  late AnimationController _controllerIconController;
+  int selectedJoystickStyle = 0;
+  
   Map<String, String> buttonChars = {
     'forward': 'W',
     'backward': 'S',
@@ -64,21 +67,38 @@ class _ControllerScreenState extends State<ControllerScreen> {
     'action2': 'Y',
   };
 
+  final List<Widget Function(BuildContext, Map<String, Function>)> joystickStyles = [
+    (context, callbacks) => ClassicJoystick(callbacks: callbacks),
+    (context, callbacks) => ModernJoystick(callbacks: callbacks),
+    (context, callbacks) => MinimalJoystick(callbacks: callbacks),
+  ];
+
   @override
   void initState() {
     super.initState();
+    _controllerIconController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat(reverse: true);
+    
     initializeServer();
     getIPAddress();
     loadSettings();
   }
 
   Future<void> getIPAddress() async {
+    if (!isServerActive) {
+      setState(() {
+        ipAddress = '';
+      });
+      return;
+    }
+    
     try {
       final info = NetworkInfo();
       final wifiIp = await info.getWifiIP();
-      final hotspotIp = await info.getWifiIP(); // Assuming hotspot IP is the same as WiFi IP
       setState(() {
-        ipAddress = hotspotIp != null ? '$hotspotIp:$port' : (wifiIp != null ? '$wifiIp:$port' : 'Not found');
+        ipAddress = wifiIp != null ? '$wifiIp:$port' : 'Not found';
       });
     } catch (e) {
       setState(() {
@@ -88,122 +108,95 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 
   Future<void> initializeServer() async {
+    if (!isServerActive) return;
+    
     try {
       server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-      server!.listen((Socket client) {
-        setState(() {
-          clients.add(client);
-          isConnected = true;
-          connectionStatus = 'Connected!';
-          activeClient = client;
-        });
+      server!.listen(
+        (Socket client) {
+          setState(() {
+            clients.add(client);
+            isConnected = true;
+            activeClient = client;
+            _controllerIconController.stop();
+          });
 
-        client.listen(
-          (data) {
-            print('Received: ${String.fromCharCodes(data)}');
-          },
-          onError: (error) {
-            handleDisconnection(client);
-          },
-          onDone: () {
-            handleDisconnection(client);
-          },
-        );
-      });
+          client.done.then((_) => handleDisconnection(client));
+          client.handleError((_) => handleDisconnection(client));
+        },
+        onError: (e) {
+          setState(() {
+            isConnected = false;
+            _controllerIconController.repeat(reverse: true);
+          });
+        },
+      );
     } catch (e) {
       setState(() {
-        connectionStatus = 'Server Error: $e';
+        isConnected = false;
+        _controllerIconController.repeat(reverse: true);
       });
     }
   }
 
   void handleDisconnection(Socket client) {
+    if (!mounted) return;
     setState(() {
       clients.remove(client);
       if (clients.isEmpty) {
         isConnected = false;
-        connectionStatus = 'ESP32 Disconnected - Waiting for reconnection...';
+        _controllerIconController.repeat(reverse: true);
       }
     });
     client.close();
   }
 
-  void sendCharacter(String character) {
-    if (isConnected && activeClient != null) {
-      activeClient!.write(character);
-    } else {
-      setState(() {
-        connectionStatus = 'Not connected to ESP32';
-      });
-    }
-  }
-
-  void handleButtonPress(String character) {
-    sendCharacter(character);
-  }
-
-  void handleButtonRelease() {
-    sendCharacter('S'); // Stop signal
-  }
-
-  void handleActionButtonPress(String character) {
-    sendCharacter(character);
-  }
-
-  void handleActionButtonRelease(String character) {
-    sendCharacter(character); // Send character again on release
-  }
-
-  void loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+  void toggleServer() {
     setState(() {
-      buttonChars = {
-        'forward': prefs.getString('forward') ?? 'W',
-        'backward': prefs.getString('backward') ?? 'S',
-        'left': prefs.getString('left') ?? 'A',
-        'right': prefs.getString('right') ?? 'D',
-        'action1': prefs.getString('action1') ?? 'X',
-        'action2': prefs.getString('action2') ?? 'Y',
-      };
+      isServerActive = !isServerActive;
+      if (!isServerActive) {
+        server?.close();
+        for (var client in clients) {
+          client.close();
+        }
+        clients.clear();
+        isConnected = false;
+        ipAddress = '';
+        _controllerIconController.stop();
+      } else {
+        initializeServer();
+        getIPAddress();
+        _controllerIconController.repeat(reverse: true);
+      }
     });
   }
 
-  void showSettingsDialog() {
+  void showJoystickSelector() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Button Settings'),
+        title: const Text('Select Joystick Style'),
         content: SingleChildScrollView(
           child: Column(
-            children: buttonChars.entries.map((entry) {
-              return ListTile(
-                title: Text(entry.key),
-                trailing: SizedBox(
-                  width: 50,
-                  child: TextField(
-                    maxLength: 1,
-                    controller: TextEditingController(text: entry.value),
-                    onChanged: (value) async {
-                      if (value.isNotEmpty) {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString(entry.key, value);
-                        setState(() {
-                          buttonChars[entry.key] = value;
-                        });
-                      }
-                    },
-                  ),
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              joystickStyles.length,
+              (index) => ListTile(
+                leading: Radio<int>(
+                  value: index,
+                  groupValue: selectedJoystickStyle,
+                  onChanged: (value) {
+                    setState(() {
+                      selectedJoystickStyle = value!;
+                      Navigator.pop(context);
+                    });
+                  },
                 ),
-              );
-            }).toList(),
+                title: Text('Style ${index + 1}'),
+              ),
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }
@@ -212,99 +205,80 @@ class _ControllerScreenState extends State<ControllerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bot Controller'),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.settings),
-          onPressed: showSettingsDialog,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isServerActive) ...[
+              Text(ipAddress),
+              const SizedBox(width: 10),
+              FadeTransition(
+                opacity: _controllerIconController,
+                child: const Icon(Icons.gamepad, size: 24),
+              ),
+            ],
+          ],
         ),
+        centerTitle: true,
       ),
       body: Stack(
         children: [
-          Center(
+          // Left side controls
+          Positioned(
+            left: 20,
+            top: 20,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'IP Address: $ipAddress',
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                Switch(
+                  value: isServerActive,
+                  onChanged: (value) => toggleServer(),
                 ),
-                Text(
-                  connectionStatus,
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: isConnected ? Colors.green : Colors.red,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const SizedBox(height: 10),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () => showSettingsDialog(),
+                ),
+                const SizedBox(height: 10),
+                IconButton(
+                  icon: const Icon(Icons.gamepad),
+                  onPressed: showJoystickSelector,
                 ),
               ],
             ),
           ),
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTapDown: (_) => handleButtonPress(buttonChars['forward']!),
-                    onTapUp: (_) => handleButtonRelease(),
-                    onTapCancel: () => handleButtonRelease(),
-                    child: const CustomButton(character: '↑', color: Colors.blue),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTapDown: (_) => handleButtonPress(buttonChars['left']!),
-                        onTapUp: (_) => handleButtonRelease(),
-                        onTapCancel: () => handleButtonRelease(),
-                        child: const CustomButton(character: '←', color: Colors.orange),
-                      ),
-                      const SizedBox(width: 10),
-                      GestureDetector(
-                        onTapDown: (_) => handleButtonPress(buttonChars['right']!),
-                        onTapUp: (_) => handleButtonRelease(),
-                        onTapCancel: () => handleButtonRelease(),
-                        child: const CustomButton(character: '→', color: Colors.purple),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTapDown: (_) => handleButtonPress(buttonChars['backward']!),
-                    onTapUp: (_) => handleButtonRelease(),
-                    onTapCancel: () => handleButtonRelease(),
-                    child: const CustomButton(character: '↓', color: Colors.red),
-                  ),
-                ],
-              ),
+          
+          // Main controller area
+          Center(
+            child: joystickStyles[selectedJoystickStyle](
+              context,
+              {
+                'onForward': () => sendCharacter(buttonChars['forward']!),
+                'onBackward': () => sendCharacter(buttonChars['backward']!),
+                'onLeft': () => sendCharacter(buttonChars['left']!),
+                'onRight': () => sendCharacter(buttonChars['right']!),
+                'onRelease': () => sendCharacter('S'),
+              },
             ),
           ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTapDown: (_) => handleActionButtonPress(buttonChars['action1']!),
-                    onTapUp: (_) => handleActionButtonRelease(buttonChars['action1']!),
-                    onTapCancel: () => handleActionButtonRelease(buttonChars['action1']!),
-                    child: const CustomButton(character: 'A1', color: Colors.green),
-                  ),
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTapDown: (_) => handleActionButtonPress(buttonChars['action2']!),
-                    onTapUp: (_) => handleActionButtonRelease(buttonChars['action2']!),
-                    onTapCancel: () => handleActionButtonRelease(buttonChars['action2']!),
-                    child: const CustomButton(character: 'A2', color: Colors.yellow),
-                  ),
-                ],
-              ),
+          
+          // Right side action buttons
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ActionButton(
+                  label: 'X',
+                  color: Colors.green,
+                  onPressed: () => sendCharacter(buttonChars['action1']!),
+                ),
+                const SizedBox(height: 10),
+                ActionButton(
+                  label: 'Y',
+                  color: Colors.blue,
+                  onPressed: () => sendCharacter(buttonChars['action2']!),
+                ),
+              ],
             ),
           ),
         ],
@@ -312,8 +286,15 @@ class _ControllerScreenState extends State<ControllerScreen> {
     );
   }
 
+  void sendCharacter(String character) {
+    if (isConnected && activeClient != null) {
+      activeClient!.write(character);
+    }
+  }
+
   @override
   void dispose() {
+    _controllerIconController.dispose();
     server?.close();
     for (var client in clients) {
       client.close();
@@ -322,34 +303,102 @@ class _ControllerScreenState extends State<ControllerScreen> {
   }
 }
 
-class CustomButton extends StatelessWidget {
-  final String character;
-  final Color color;
-
-  const CustomButton({super.key, required this.character, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            offset: const Offset(0, 4),
-            blurRadius: 4,
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          character,
-          style: const TextStyle(fontSize: 20, color: Colors.white),
+void showSettingsDialog() {
+  showDialog(
+    context: context, // error can be solved by passing context as a parameter or by using a global key or by using a state management solution
+    builder: (context) => AlertDialog(
+      title: const Text(
+        'Controller Settings',
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
         ),
       ),
-    );
-  }
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSettingField('Forward', 'forward'),
+            _buildSettingField('Backward', 'backward'),
+            _buildSettingField('Left', 'left'),
+            _buildSettingField('Right', 'right'),
+            _buildSettingField('Action X', 'action1'),
+            _buildSettingField('Action Y', 'action2'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Close',
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildSettingField(String label, String key) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8.0),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 16),
+        ),
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: TextEditingController(text: buttonChars[key]), //error can be solved by passing buttonChars as a parameter or by using a global key or by using a state management solution
+            maxLength: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
+            decoration: InputDecoration(
+              counterText: '',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+            ),
+            onChanged: (value) async {
+              if (value.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString(key, value.toUpperCase());
+                setState(() { // error: setState is not defined
+                  buttonChars[key] = value.toUpperCase(); //error: buttonChars is not defined
+                });
+              }
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> loadSettings() async {
+  final prefs = await SharedPreferences.getInstance();
+  setState(() { //error: setState is not defined
+    buttonChars = { //error: buttonChars is not defined
+      'forward': prefs.getString('forward')?.toUpperCase() ?? 'W',
+      'backward': prefs.getString('backward')?.toUpperCase() ?? 'S',
+      'left': prefs.getString('left')?.toUpperCase() ?? 'A',
+      'right': prefs.getString('right')?.toUpperCase() ?? 'D',
+      'action1': prefs.getString('action1')?.toUpperCase() ?? 'X',
+      'action2': prefs.getString('action2')?.toUpperCase() ?? 'Y',
+    };
+    selectedJoystickStyle = prefs.getInt('joystickStyle') ?? 0;//error: selectedJoystickStyle is not defined
+  });
+}
+
+Future<void> saveJoystickStyle(int style) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setInt('joystickStyle', style);
 }
