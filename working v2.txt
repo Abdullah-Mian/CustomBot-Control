@@ -46,7 +46,17 @@ class ControllerScreen extends StatefulWidget {
   State<ControllerScreen> createState() => _ControllerScreenState();
 }
 
-class _ControllerScreenState extends State<ControllerScreen>
+ Map<String, String> buttonChars = {
+    'forward': 'W',
+    'backward': 'S',
+    'left': 'A',
+    'right': 'D',
+    'action1': 'X',
+    'action2': 'Y',
+  };
+int selectedJoystickStyle = 0;
+
+class _ControllerScreenState extends State<ControllerScreen> 
     with SingleTickerProviderStateMixin {
   String ipAddress = 'Loading...';
   bool isConnected = false;
@@ -56,19 +66,10 @@ class _ControllerScreenState extends State<ControllerScreen>
   List<Socket> clients = [];
   Socket? activeClient;
   late AnimationController _controllerIconController;
-  int selectedJoystickStyle = 0;
+  
+  
 
-  Map<String, String> buttonChars = {
-    'forward': 'W',
-    'backward': 'S',
-    'left': 'A',
-    'right': 'D',
-    'action1': 'X',
-    'action2': 'Y',
-  };
-
-  final List<Widget Function(BuildContext, Map<String, Function>)>
-      joystickStyles = [
+  final List<Widget Function(BuildContext, Map<String, Function>)> joystickStyles = [
     (context, callbacks) => ClassicJoystick(callbacks: callbacks),
     (context, callbacks) => ModernJoystick(callbacks: callbacks),
     (context, callbacks) => MinimalJoystick(callbacks: callbacks),
@@ -81,113 +82,10 @@ class _ControllerScreenState extends State<ControllerScreen>
       duration: const Duration(seconds: 1),
       vsync: this,
     )..repeat(reverse: true);
-
+    
     initializeServer();
     getIPAddress();
-    loadSettings();
-  }
-
-  Widget _buildSettingField(String label, String key) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16),
-          ),
-          SizedBox(
-            width: 60,
-            child: TextField(
-              controller: TextEditingController(
-                  text: buttonChars[
-                      key]), //error can be solved by passing buttonChars as a parameter or by using a global key or by using a state management solution
-              maxLength: 1,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-              decoration: InputDecoration(
-                counterText: '',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 8,
-                ),
-              ),
-              onChanged: (value) async {
-                if (value.isNotEmpty) {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString(key, value.toUpperCase());
-                  setState(() {
-                    // error: setState is not defined
-                    buttonChars[key] =
-                        value.toUpperCase(); //error: buttonChars is not defined
-                  });
-                }
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      //error: setState is not defined
-      buttonChars = {
-        //error: buttonChars is not defined
-        'forward': prefs.getString('forward')?.toUpperCase() ?? 'W',
-        'backward': prefs.getString('backward')?.toUpperCase() ?? 'S',
-        'left': prefs.getString('left')?.toUpperCase() ?? 'A',
-        'right': prefs.getString('right')?.toUpperCase() ?? 'D',
-        'action1': prefs.getString('action1')?.toUpperCase() ?? 'X',
-        'action2': prefs.getString('action2')?.toUpperCase() ?? 'Y',
-      };
-      selectedJoystickStyle = prefs.getInt('joystickStyle') ??
-          0; //error: selectedJoystickStyle is not defined
-    });
-  }
-
-  void showSettingsDialog(BuildContext context) {
-    showDialog(
-      context:
-          context, // error can be solved by passing context as a parameter or by using a global key or by using a state management solution
-      builder: (context) => AlertDialog(
-        title: const Text(
-          'Controller Settings',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildSettingField('Forward', 'forward'),
-              _buildSettingField('Backward', 'backward'),
-              _buildSettingField('Left', 'left'),
-              _buildSettingField('Right', 'right'),
-              _buildSettingField('Action X', 'action1'),
-              _buildSettingField('Action Y', 'action2'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
-      ),
-    );
+    loadSettings(setState);
   }
 
   Future<void> getIPAddress() async {
@@ -197,7 +95,7 @@ class _ControllerScreenState extends State<ControllerScreen>
       });
       return;
     }
-
+    
     try {
       final info = NetworkInfo();
       final wifiIp = await info.getWifiIP();
@@ -213,7 +111,7 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   Future<void> initializeServer() async {
     if (!isServerActive) return;
-
+    
     try {
       server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
       server!.listen(
@@ -275,7 +173,7 @@ class _ControllerScreenState extends State<ControllerScreen>
     });
   }
 
-  void showJoystickSelector() {
+  void showJoystickSelector(setState) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -327,37 +225,31 @@ class _ControllerScreenState extends State<ControllerScreen>
       body: Stack(
         children: [
           // Left side controls
-          Center(
+          Positioned(
+            left: 20,
+            top: 20,
             child: Column(
               children: [
-                const SizedBox(height: 20),
                 Switch(
                   value: isServerActive,
                   onChanged: (value) => toggleServer(),
                 ),
                 const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 10),
-                    IconButton(
-                      icon: const Icon(Icons.settings),
-                      onPressed: () => showSettingsDialog(context),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.gamepad),
-                      onPressed: showJoystickSelector,
-                    ),
-                  ],
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () => showSettingsDialog(context,setState),
+                ),
+                const SizedBox(height: 10),
+                IconButton(
+                  icon: const Icon(Icons.gamepad),
+                  onPressed: () => showJoystickSelector(setState),
                 ),
               ],
             ),
           ),
-
+          
           // Main controller area
-          Positioned(
-            left: 20,
-            bottom: 20,
+          Center(
             child: joystickStyles[selectedJoystickStyle](
               context,
               {
@@ -369,12 +261,12 @@ class _ControllerScreenState extends State<ControllerScreen>
               },
             ),
           ),
-
+          
           // Right side action buttons
           Positioned(
             right: 20,
             bottom: 20,
-            child: Row(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ActionButton(
@@ -382,7 +274,7 @@ class _ControllerScreenState extends State<ControllerScreen>
                   color: Colors.green,
                   onPressed: () => sendCharacter(buttonChars['action1']!),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(height: 10),
                 ActionButton(
                   label: 'Y',
                   color: Colors.blue,
@@ -411,6 +303,101 @@ class _ControllerScreenState extends State<ControllerScreen>
     }
     super.dispose();
   }
+}
+
+void showSettingsDialog(BuildContext context, setState) {
+  showDialog(
+    context: context, // error can be solved by passing context as a parameter or by using a global key or by using a state management solution
+    builder: (context) => AlertDialog(
+      title: const Text(
+        'Controller Settings',
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSettingField('Forward', 'forward', setState),
+            _buildSettingField('Backward', 'backward',setState),
+            _buildSettingField('Left', 'left',setState),
+            _buildSettingField('Right', 'right',setState),
+            _buildSettingField('Action X', 'action1',setState),
+            _buildSettingField('Action Y', 'action2',setState),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Close',
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildSettingField(String label, String key, setState) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8.0),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 16),
+        ),
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: TextEditingController(text: buttonChars[key]), //error can be solved by passing buttonChars as a parameter or by using a global key or by using a state management solution
+            maxLength: 1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
+            decoration: InputDecoration(
+              counterText: '',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+            ),
+            onChanged: (value) async {
+              if (value.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString(key, value.toUpperCase());
+                setState(() { // error: setState is not defined
+                  buttonChars[key] = value.toUpperCase(); //error: buttonChars is not defined
+                });
+              }
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> loadSettings(setState) async {
+  final prefs = await SharedPreferences.getInstance();
+  setState(() { //error: setState is not defined
+    buttonChars = { //error: buttonChars is not defined
+      'forward': prefs.getString('forward')?.toUpperCase() ?? 'W',
+      'backward': prefs.getString('backward')?.toUpperCase() ?? 'S',
+      'left': prefs.getString('left')?.toUpperCase() ?? 'A',
+      'right': prefs.getString('right')?.toUpperCase() ?? 'D',
+      'action1': prefs.getString('action1')?.toUpperCase() ?? 'X',
+      'action2': prefs.getString('action2')?.toUpperCase() ?? 'Y',
+    };
+    selectedJoystickStyle = prefs.getInt('joystickStyle') ?? 0;//error: selectedJoystickStyle is not defined
+  });
 }
 
 Future<void> saveJoystickStyle(int style) async {
