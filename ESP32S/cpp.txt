@@ -1,0 +1,117 @@
+#include <WiFi.h>
+
+const char* ssid = "Redmi 9T";
+const char* password = "68986898";
+const char* host = "192.168.195.83"; // The IP shown in the app
+const int port = 50123;
+
+WiFiClient client;
+
+// Motor control pins for L298N
+const int IN1 = 25; // Motor 1 forward
+const int IN2 = 26; // Motor 1 backward
+const int IN3 = 32; // Motor 2 forward
+const int IN4 = 33; // Motor 2 backward
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Initialize motor pins as outputs
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  
+  // Stop motors initially
+  stopMotors();
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected");
+
+  // Connect to the server
+  connectToServer();
+}
+
+void connectToServer() {
+  while (!client.connected()) {
+    Serial.println("Attempting to connect to server...");
+    if (client.connect(host, port)) {
+      Serial.println("Connected to server");
+      client.println("ESP32 Connected");
+    } else {
+      Serial.println("Connection failed. Retrying in 5 seconds...");
+      delay(5000);
+    }
+  }
+}
+
+// Motor control functions
+void forward() {
+  analogWrite(IN1, 0);  // Motor 1 forward
+  analogWrite(IN2, 255);   // Motor 1 backward (off)
+  analogWrite(IN3, 255);  // Motor 2 forward
+  analogWrite(IN4, 0);   // Motor 2 backward (off)
+  Serial.println("Moving Forward");
+}
+
+void backward() {
+  analogWrite(IN1, 255);   // Motor 1 forward (off)
+  analogWrite(IN2, 0);  // Motor 1 backward
+  analogWrite(IN3, 0);   // Motor 2 forward (off)
+  analogWrite(IN4, 255);  // Motor 2 backward
+  Serial.println("Moving Backward");
+}
+
+void left() {
+  analogWrite(IN1, 0);   // Motor 1 forward (off)
+  analogWrite(IN2, 255);   // Motor 1 backward (off)
+  analogWrite(IN3,125);  // Motor 2 forward (turning right motor forward only)
+  analogWrite(IN4, 0);   // Motor 2 backward (off)
+  Serial.println("Turning Left");
+}
+
+void right() {
+  analogWrite(IN1,0);  // Motor 1 forward (turning left motor forward only)
+  analogWrite(IN2, 125);   // Motor 1 backward (off)
+  analogWrite(IN3, 255);   // Motor 2 forward (off)
+  analogWrite(IN4, 0);   // Motor 2 backward (off)
+  Serial.println("Turning Right");
+}
+
+void stopMotors() {
+  analogWrite(IN1, 0);
+  analogWrite(IN2, 0);
+  analogWrite(IN3, 0);
+  analogWrite(IN4, 0);
+  Serial.println("Motors Stopped");
+}
+
+void loop() {
+  if (!client.connected()) {
+    Serial.println("Connection lost. Reconnecting...");
+    connectToServer();
+  }
+  
+  if (client.available()) {
+    String data = client.readStringUntil('\n');
+    Serial.println("Received: " + data);
+    
+    // Process received character
+    if (data == "F") {
+      forward();
+    } else if (data == "B") {
+      backward();
+    } else if (data == "L") {
+      left();
+    } else if (data == "R") {
+      right();
+    } else if (data == "S") {
+      stopMotors();
+    }
+  }
+}
