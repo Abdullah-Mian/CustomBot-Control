@@ -1,18 +1,18 @@
 #include <WiFi.h>
 
 // Wi-Fi credentials
-const char* ssid = "Redmi 9T"; // Replace with your hotspot SSID
-const char* password = "68986898"; // Replace with your hotspot password
+const char* ssid = "Redmi 9T";      // Replace with your hotspot SSID
+const char* password = "68986898";  // Replace with your hotspot password
 
 // Server details
-const char* host = "192.168.247.254"; // Replace with the IP shown in the app
+const char* host = "192.168.9.236";  // Replace with the IP shown in the app
 const int port = 50123;
 
 // Motor control pins for L298N
-const int IN1 = 12; // Motor 1 forward
-const int IN2 = 14; // Motor 1 backward
-const int IN3 = 27; // Motor 2 forward
-const int IN4 = 26; // Motor 2 backward
+const int IN1 = 26;  // Motor 1 forward
+const int IN2 = 25;  // Motor 1 backward
+const int IN3 = 33;  // Motor 2 forward
+const int IN4 = 32;  // Motor 2 backward
 
 WiFiClient client;
 
@@ -57,34 +57,37 @@ void connectToServer() {
 
 // Motor control functions
 void forward() {
-  digitalWrite(IN1, LOW); // Motor 1 forward
+  digitalWrite(IN1, LOW);   // Motor 1 forward
   digitalWrite(IN2, HIGH);  // Motor 1 backward
-  digitalWrite(IN3, HIGH); // Motor 2 forward
-  digitalWrite(IN4, LOW);  // Motor 2 backward
+  digitalWrite(IN3, HIGH);  // Motor 2 forward
+  digitalWrite(IN4, LOW);   // Motor 2 backward
   Serial.println("Moving Forward");
 }
 
 void backward() {
   digitalWrite(IN1, HIGH);  // Motor 1 forward
-  digitalWrite(IN2, LOW); // Motor 1 backward
-  digitalWrite(IN3, LOW);  // Motor 2 forward
-  digitalWrite(IN4, HIGH); // Motor 2 backward
+  digitalWrite(IN2, LOW);   // Motor 1 backward
+  digitalWrite(IN3, LOW);   // Motor 2 forward
+  digitalWrite(IN4, HIGH);  // Motor 2 backward
+
   Serial.println("Moving Backward");
 }
 
 void left() {
-  digitalWrite(IN1, LOW);  // Motor 1 forward
-  digitalWrite(IN2, HIGH); // Motor 1 backward
-  digitalWrite(IN3, LOW); // Motor 2 forward
+
+  digitalWrite(IN1, LOW);   // Motor 1 forward
+  digitalWrite(IN2, HIGH);  // Motor 1 backward
+  digitalWrite(IN3, LOW);   // Motor 2 forward
   digitalWrite(IN4, HIGH);  // Motor 2 backward
   Serial.println("Turning Left");
 }
 
 void right() {
-  digitalWrite(IN1, HIGH); // Motor 1 forward
-  digitalWrite(IN2, LOW);  // Motor 1 backward
+  digitalWrite(IN1, HIGH);  // Motor 1 forward
+  digitalWrite(IN2, LOW);   // Motor 1 backward
   digitalWrite(IN3, HIGH);  // Motor 2 forward
-  digitalWrite(IN4, LOW); // Motor 2 backward
+  digitalWrite(IN4, LOW);   // Motor 2 backward
+
   Serial.println("Turning Right");
 }
 
@@ -104,7 +107,7 @@ void loop() {
 
   if (client.available()) {
     String data = client.readStringUntil('\n');
-    data.trim(); // Remove any extra whitespace
+    data.trim();  // Remove any extra whitespace
     Serial.println("Received: " + data);
 
     // Process received character
