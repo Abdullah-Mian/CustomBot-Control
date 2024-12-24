@@ -29,12 +29,17 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Robot Controller',
-      theme: ThemeData.dark().copyWith(
-        primaryColor: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1E1E1E),
-          elevation: 0,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF1A1A1A),
+        cardTheme: CardTheme(
+          color: const Color(0xFF2D2D2D),
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
       home: const ControllerScreen(),
@@ -315,89 +320,163 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(ipAddress),
-            const SizedBox(width: 10),
-            FadeTransition(
-              opacity: _controllerIconController,
-              child: const Icon(Icons.gamepad, size: 24),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                colorScheme.primaryContainer.withOpacity(0.3),
+                colorScheme.secondaryContainer.withOpacity(0.3),
+              ],
             ),
-          ],
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(ipAddress, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 12),
+              FadeTransition(
+                opacity: _controllerIconController,
+                child: Icon(
+                  Icons.gamepad,
+                  size: 24,
+                  color: isConnected ? colorScheme.primary : colorScheme.error,
+                ),
+              ),
+            ],
+          ),
         ),
         centerTitle: true,
       ),
       body: Stack(
         children: [
-          // Left side controls
-          Center(
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 10),
-                    IconButton(
-                      icon: const Icon(Icons.settings),
-                      onPressed: () => showSettingsDialog(context),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.gamepad),
-                      onPressed: showJoystickSelector,
-                    ),
-                    Switch(
-                      value: isServerOn,
-                      onChanged: (value) => toggleServer(value),
-                    ),
-                  ],
+          // Control panel at the top
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Card(
+                margin: const EdgeInsets.all(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildControlButton(
+                        icon: Icons.settings,
+                        label: 'Settings',
+                        onTap: () => showSettingsDialog(context),
+                      ),
+                      const SizedBox(width: 16),
+                      _buildControlButton(
+                        icon: Icons.gamepad,
+                        label: 'Style',
+                        onTap: showJoystickSelector,
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Server', style: TextStyle(fontSize: 12)),
+                          Switch(
+                            value: isServerOn,
+                            onChanged: toggleServer,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
 
-          // Main controller area
+          // Joystick area with background
           Positioned(
             left: 20,
             bottom: 20,
-            child: joystickStyles[selectedJoystickStyle](
-              context,
-              {
-                'onForward': () => sendCharacter(buttonChars['forward']!),
-                'onBackward': () => sendCharacter(buttonChars['backward']!),
-                'onLeft': () => sendCharacter(buttonChars['left']!),
-                'onRight': () => sendCharacter(buttonChars['right']!),
-                'onRelease': () => sendCharacter('S'),
-              },
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    colorScheme.primaryContainer.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: joystickStyles[selectedJoystickStyle](
+                context,
+                {
+                  'onForward': () => sendCharacter(buttonChars['forward']!),
+                  'onBackward': () => sendCharacter(buttonChars['backward']!),
+                  'onLeft': () => sendCharacter(buttonChars['left']!),
+                  'onRight': () => sendCharacter(buttonChars['right']!),
+                  'onRelease': () => sendCharacter('S'),
+                },
+              ),
             ),
           ),
 
-          // Right side action buttons
+          // Action buttons with enhanced styling
           Positioned(
             right: 20,
             bottom: 20,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ActionButton(
-                  label: 'X',
-                  color: Colors.green,
-                  onPressed: () => sendCharacter(buttonChars['action1']!),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: [
+                    colorScheme.secondaryContainer.withOpacity(0.2),
+                    Colors.transparent,
+                  ],
                 ),
-                const SizedBox(width: 20),
-                ActionButton(
-                  label: 'Y',
-                  color: Colors.blue,
-                  onPressed: () => sendCharacter(buttonChars['action2']!),
-                ),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ActionButton(
+                    label: 'X',
+                    color: colorScheme.primaryContainer,
+                    onPressed: () => sendCharacter(buttonChars['action1']!),
+                  ),
+                  const SizedBox(width: 20),
+                  ActionButton(
+                    label: 'Y',
+                    color: colorScheme.secondaryContainer,
+                    onPressed: () => sendCharacter(buttonChars['action2']!),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
       ),
     );
   }

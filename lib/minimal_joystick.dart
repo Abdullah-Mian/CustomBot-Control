@@ -7,68 +7,86 @@ class MinimalJoystick extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Container(
-      width: 150,
-      height: 150,
+      width: 180,
+      height: 180,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 2),
-        borderRadius: BorderRadius.circular(75),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: colorScheme.primary.withOpacity(0.2),
+          width: 1.5,
+        ),
+        gradient: RadialGradient(
+          colors: [
+            colorScheme.primary.withOpacity(0.05),
+            Colors.transparent,
+          ],
+        ),
       ),
       child: Stack(
         children: [
-          _buildDirectionButton(
-            Alignment.topCenter,
-            '↑',
-            callbacks['onForward']!,
-          ),
-          _buildDirectionButton(
-            Alignment.bottomCenter,
-            '↓',
-            callbacks['onBackward']!,
-          ),
-          _buildDirectionButton(
-            Alignment.centerLeft,
-            '←',
-            callbacks['onLeft']!,
-          ),
-          _buildDirectionButton(
-            Alignment.centerRight,
-            '→',
-            callbacks['onRight']!,
+          _buildDirectionButton(Alignment.topCenter, '↑', callbacks['onForward']!, colorScheme),
+          _buildDirectionButton(Alignment.bottomCenter, '↓', callbacks['onBackward']!, colorScheme),
+          _buildDirectionButton(Alignment.centerLeft, '←', callbacks['onLeft']!, colorScheme),
+          _buildDirectionButton(Alignment.centerRight, '→', callbacks['onRight']!, colorScheme),
+          Center(
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.surface.withOpacity(0.1),
+                border: Border.all(
+                  color: colorScheme.primary.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDirectionButton(
-    Alignment alignment,
-    String label,
-    Function onPressed,
-  ) {
+  Widget _buildDirectionButton(Alignment alignment, String label, Function onPressed, ColorScheme colorScheme) {
     return Align(
       alignment: alignment,
-      child: GestureDetector(
-        onTapDown: (_) => onPressed(),
-        onTapUp: (_) => callbacks['onRelease']!(),
-        onTapCancel: () => callbacks['onRelease']!(),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.blue,
-                fontSize: 20,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 1.0, end: 0.9),
+        duration: const Duration(milliseconds: 100),
+        builder: (context, scale, child) {
+          return GestureDetector(
+            onTapDown: (_) => onPressed(),
+            onTapUp: (_) => callbacks['onRelease']!(),
+            onTapCancel: () => callbacks['onRelease']!(),
+            child: Transform.scale(
+              scale: scale,
+              child: Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.primary.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: colorScheme.primary.withOpacity(0.8),
+                    ),
+                  ),
+                ),
               ),
             ),
-            ),
-        ),
+          );
+        },
       ),
     );
   }

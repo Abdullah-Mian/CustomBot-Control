@@ -6,7 +6,7 @@ const char *ssid = "Redmi 9T";     // Replace with your hotspot SSID
 const char *password = "68986898"; // Replace with your hotspot password
 
 // Server details
-const char *host = "192.168.18.39"; // Replace with the IP shown in the app
+const char *host = "10.10.173.239"; // Replace with the IP shown in the app
 const int port = 5000;
 
 // Motor control pins for L298N
