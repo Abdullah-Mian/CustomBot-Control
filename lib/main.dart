@@ -7,6 +7,10 @@ import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:shelf_web_socket/shelf_web_socket.dart';
+import 'package:shelf/shelf_io.dart' as shelf_io;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,13 +54,14 @@ class _ControllerScreenState extends State<ControllerScreen>
     with SingleTickerProviderStateMixin {
   String ipAddress = 'Loading...';
   bool isConnected = false;
-  bool isServerActive = true;
-  ServerSocket? server;
-  final int port = 5000;
-  List<Socket> clients = [];
-  Socket? activeClient;
+  bool isServerOn = false;
   late AnimationController _controllerIconController;
   int selectedJoystickStyle = 0;
+  IOWebSocketChannel? channel;
+  final int port = 5000;
+  String manualIp = '';
+  HttpServer? wsServer;
+  List<WebSocketChannel> connectedClients = [];
 
   Map<String, String> buttonChars = {
     'forward': 'W',
@@ -82,9 +87,9 @@ class _ControllerScreenState extends State<ControllerScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    initializeServer();
     getIPAddress();
     loadSettings();
+    initializeWebSocket();
   }
 
   Widget _buildSettingField(String label, String key) {
@@ -101,8 +106,7 @@ class _ControllerScreenState extends State<ControllerScreen>
             width: 60,
             child: TextField(
               controller: TextEditingController(
-                  text: buttonChars[
-                      key]), //error can be solved by passing buttonChars as a parameter or by using a global key or by using a state management solution
+                  text: buttonChars[key]),
               maxLength: 1,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16),
@@ -121,11 +125,48 @@ class _ControllerScreenState extends State<ControllerScreen>
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setString(key, value.toUpperCase());
                   setState(() {
-                    // error: setState is not defined
-                    buttonChars[key] =
-                        value.toUpperCase(); //error: buttonChars is not defined
+                    buttonChars[key] = value.toUpperCase();
                   });
                 }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIpField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Manual IP',
+            style: TextStyle(fontSize: 16),
+          ),
+          SizedBox(
+            width: 120,
+            child: TextField(
+              controller: TextEditingController(text: manualIp),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 8,
+                ),
+              ),
+              onChanged: (value) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('manualIp', value);
+                setState(() {
+                  manualIp = value;
+                });
               },
             ),
           ),
@@ -137,9 +178,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      //error: setState is not defined
       buttonChars = {
-        //error: buttonChars is not defined
         'forward': prefs.getString('forward')?.toUpperCase() ?? 'W',
         'backward': prefs.getString('backward')?.toUpperCase() ?? 'S',
         'left': prefs.getString('left')?.toUpperCase() ?? 'A',
@@ -147,8 +186,8 @@ class _ControllerScreenState extends State<ControllerScreen>
         'action1': prefs.getString('action1')?.toUpperCase() ?? 'X',
         'action2': prefs.getString('action2')?.toUpperCase() ?? 'Y',
       };
-      selectedJoystickStyle = prefs.getInt('joystickStyle') ??
-          0; //error: selectedJoystickStyle is not defined
+      selectedJoystickStyle = prefs.getInt('joystickStyle') ?? 0;
+      manualIp = prefs.getString('manualIp') ?? '';
     });
   }
 
@@ -174,6 +213,7 @@ class _ControllerScreenState extends State<ControllerScreen>
               _buildSettingField('Right', 'right'),
               _buildSettingField('Action X', 'action1'),
               _buildSettingField('Action Y', 'action2'),
+              _buildIpField(),
             ],
           ),
         ),
@@ -191,13 +231,6 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   Future<void> getIPAddress() async {
-    if (!isServerActive) {
-      setState(() {
-        ipAddress = '';
-      });
-      return;
-    }
-
     try {
       final info = NetworkInfo();
       final wifiIp = await info.getWifiIP();
@@ -209,70 +242,6 @@ class _ControllerScreenState extends State<ControllerScreen>
         ipAddress = 'Error getting IP';
       });
     }
-  }
-
-  Future<void> initializeServer() async {
-    if (!isServerActive) return;
-
-    try {
-      server = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-      server!.listen(
-        (Socket client) {
-          setState(() {
-            clients.add(client);
-            isConnected = true;
-            activeClient = client;
-            _controllerIconController.stop();
-          });
-
-          client.done.then((_) => handleDisconnection(client));
-          client.handleError((_) => handleDisconnection(client));
-        },
-        onError: (e) {
-          setState(() {
-            isConnected = false;
-            _controllerIconController.repeat(reverse: true);
-          });
-        },
-      );
-    } catch (e) {
-      setState(() {
-        isConnected = false;
-        _controllerIconController.repeat(reverse: true);
-      });
-    }
-  }
-
-  void handleDisconnection(Socket client) {
-    if (!mounted) return;
-    setState(() {
-      clients.remove(client);
-      if (clients.isEmpty) {
-        isConnected = false;
-        _controllerIconController.repeat(reverse: true);
-      }
-    });
-    client.close();
-  }
-
-  void toggleServer() {
-    setState(() {
-      isServerActive = !isServerActive;
-      if (!isServerActive) {
-        server?.close();
-        for (var client in clients) {
-          client.close();
-        }
-        clients.clear();
-        isConnected = false;
-        ipAddress = '';
-        _controllerIconController.stop();
-      } else {
-        initializeServer();
-        getIPAddress();
-        _controllerIconController.repeat(reverse: true);
-      }
-    });
   }
 
   void showJoystickSelector() {
@@ -305,6 +274,45 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
+  Future<void> initializeWebSocket() async {
+    if (!isServerOn) return;
+    
+    try {
+      // Create WebSocket server
+      var handler = webSocketHandler((WebSocketChannel socket) {
+        setState(() {
+          connectedClients.add(socket);
+          isConnected = true;
+          _controllerIconController.stop();
+        });
+
+        socket.stream.listen(
+          (message) {
+            // Handle any incoming messages if needed
+          },
+          onDone: () {
+            setState(() {
+              connectedClients.remove(socket);
+              if (connectedClients.isEmpty) {
+                isConnected = false;
+                _controllerIconController.repeat(reverse: true);
+              }
+            });
+          },
+        );
+      });
+
+      wsServer = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+      print('WebSocket server running on ws://${wsServer!.address.address}:$port');
+    } catch (e) {
+      print('Error starting WebSocket server: $e');
+      setState(() {
+        isConnected = false;
+        _controllerIconController.repeat(reverse: true);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -312,14 +320,12 @@ class _ControllerScreenState extends State<ControllerScreen>
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (isServerActive) ...[
-              Text(ipAddress),
-              const SizedBox(width: 10),
-              FadeTransition(
-                opacity: _controllerIconController,
-                child: const Icon(Icons.gamepad, size: 24),
-              ),
-            ],
+            Text(ipAddress),
+            const SizedBox(width: 10),
+            FadeTransition(
+              opacity: _controllerIconController,
+              child: const Icon(Icons.gamepad, size: 24),
+            ),
           ],
         ),
         centerTitle: true,
@@ -331,10 +337,6 @@ class _ControllerScreenState extends State<ControllerScreen>
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                Switch(
-                  value: isServerActive,
-                  onChanged: (value) => toggleServer(),
-                ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -347,6 +349,10 @@ class _ControllerScreenState extends State<ControllerScreen>
                     IconButton(
                       icon: const Icon(Icons.gamepad),
                       onPressed: showJoystickSelector,
+                    ),
+                    Switch(
+                      value: isServerOn,
+                      onChanged: (value) => toggleServer(value),
                     ),
                   ],
                 ),
@@ -396,19 +402,41 @@ class _ControllerScreenState extends State<ControllerScreen>
     );
   }
 
+  void toggleServer(bool value) async {
+    setState(() {
+      isServerOn = value;
+    });
+    if (isServerOn) {
+      await initializeWebSocket();
+    } else {
+      for (var client in connectedClients) {
+        client.sink.close();
+      }
+      connectedClients.clear();
+      await wsServer?.close();
+      wsServer = null;
+      setState(() {
+        isConnected = false;
+        _controllerIconController.repeat(reverse: true);
+      });
+    }
+  }
+
   void sendCharacter(String character) {
-    if (isConnected && activeClient != null) {
-      activeClient!.write(character);
+    if (isConnected && connectedClients.isNotEmpty) {
+      for (var client in connectedClients) {
+        client.sink.add(character);
+      }
     }
   }
 
   @override
   void dispose() {
     _controllerIconController.dispose();
-    server?.close();
-    for (var client in clients) {
-      client.close();
+    for (var client in connectedClients) {
+      client.sink.close();
     }
+    wsServer?.close();
     super.dispose();
   }
 }
