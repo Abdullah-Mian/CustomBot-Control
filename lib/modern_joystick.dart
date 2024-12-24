@@ -1,88 +1,58 @@
 import 'package:flutter/material.dart';
+import 'base_joystick.dart';
 
-class ModernJoystick extends StatelessWidget {
-  final Map<String, Function> callbacks;
-
-  const ModernJoystick({super.key, required this.callbacks});
+class ModernJoystick extends BaseJoystick {
+  const ModernJoystick({
+    super.key,
+    required super.callbacks,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
     return Container(
-      width: 220,
-      height: 220,
+      width: 180,
+      height: 180,
       decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            colorScheme.secondary.withOpacity(0.15),
-            colorScheme.surface.withOpacity(0.05),
-          ],
-        ),
-        border: Border.all(
-          color: colorScheme.secondary.withOpacity(0.3),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.secondary.withOpacity(0.1),
-            blurRadius: 15,
-            spreadRadius: 2,
-          ),
-        ],
       ),
-      child: Stack(
-        children: [
-          _buildTouchArea('↑', callbacks['onForward']!, colorScheme, Alignment.topCenter),
-          _buildTouchArea('↓', callbacks['onBackward']!, colorScheme, Alignment.bottomCenter),
-          _buildTouchArea('←', callbacks['onLeft']!, colorScheme, Alignment.centerLeft),
-          _buildTouchArea('→', callbacks['onRight']!, colorScheme, Alignment.centerRight),
-        ],
-      ),
+      child: GridPattern(callbacks: callbacks),
     );
   }
+}
 
-  Widget _buildTouchArea(String label, Function onPressed, ColorScheme colorScheme, Alignment alignment) {
-    return Align(
-      alignment: alignment,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 1.0, end: 0.9),
-          duration: const Duration(milliseconds: 150),
-          builder: (context, scale, child) {
-            return GestureDetector(
-              onTapDown: (_) => onPressed(),
-              onTapUp: (_) => callbacks['onRelease']!(),
-              onTapCancel: () => callbacks['onRelease']!(),
-              child: Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: 55,
-                  height: 55,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: colorScheme.secondary.withOpacity(0.5),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
+class GridPattern extends StatelessWidget {
+  final Map<String, Function> callbacks;
+
+  const GridPattern({super.key, required this.callbacks});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanUpdate: (details) {
+        final dx = details.localPosition.dx - 90;
+        final dy = details.localPosition.dy - 90;
+        
+        if (dx.abs() > dy.abs()) {
+          if (dx > 0) {
+            callbacks['onRight']?.call();
+          } else {
+            callbacks['onLeft']?.call();
+          }
+        } else {
+          if (dy > 0) {
+            callbacks['onBackward']?.call();
+          } else {
+            callbacks['onForward']?.call();
+          }
+        }
+      },
+      onPanEnd: (_) => callbacks['onRelease']?.call(),
+      onPanCancel: () => callbacks['onRelease']?.call(),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+          shape: BoxShape.circle,
         ),
       ),
     );

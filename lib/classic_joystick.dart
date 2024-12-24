@@ -1,86 +1,45 @@
 import 'package:flutter/material.dart';
+import 'base_joystick.dart';
 
-class ClassicJoystick extends StatelessWidget {
-  final Map<String, Function> callbacks;
-
-  const ClassicJoystick({super.key, required this.callbacks});
+class ClassicJoystick extends BaseJoystick {
+  const ClassicJoystick({
+    super.key,
+    required super.callbacks,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          colors: [
-            colorScheme.primary.withOpacity(0.1),
-            Colors.transparent,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildDirectionButton(Icons.arrow_upward, callbacks['onForward']),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildDirectionButton(Icons.arrow_back, callbacks['onLeft']),
+            const SizedBox(width: 50),
+            _buildDirectionButton(Icons.arrow_forward, callbacks['onRight']),
           ],
         ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildDirectionButton('↑', callbacks['onForward']!, colorScheme),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDirectionButton('←', callbacks['onLeft']!, colorScheme),
-              const SizedBox(width: 60),
-              _buildDirectionButton('→', callbacks['onRight']!, colorScheme),
-            ],
-          ),
-          _buildDirectionButton('↓', callbacks['onBackward']!, colorScheme),
-        ],
-      ),
+        _buildDirectionButton(Icons.arrow_downward, callbacks['onBackward']),
+      ],
     );
   }
 
-  Widget _buildDirectionButton(String label, Function onPressed, ColorScheme colorScheme) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 1.0, end: 0.95),
-      duration: const Duration(milliseconds: 100),
-      builder: (context, scale, child) {
-        return GestureDetector(
-          onTapDown: (_) => onPressed(),
-          onTapUp: (_) => callbacks['onRelease']!(),
-          onTapCancel: () => callbacks['onRelease']!(),
-          child: Transform.scale(
-            scale: scale,
-            child: Container(
-              width: 60,
-              height: 60,
-              margin: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colorScheme.primary.withOpacity(0.5),
-                  width: 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withOpacity(0.2),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+  Widget _buildDirectionButton(IconData icon, Function? onPressed) {
+    return GestureDetector(
+      onTapDown: (_) => onPressed?.call(),
+      onTapUp: (_) => callbacks['onRelease']?.call(),
+      onTapCancel: () => callbacks['onRelease']?.call(),
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.3),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white),
+      ),
     );
   }
 }

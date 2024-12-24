@@ -2,6 +2,8 @@ import 'package:custombot_control/action_button.dart';
 import 'package:custombot_control/classic_joystick.dart';
 import 'package:custombot_control/minimal_joystick.dart';
 import 'package:custombot_control/modern_joystick.dart';
+import 'package:custombot_control/neo_joystick.dart';
+import 'package:custombot_control/arcade_joystick.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
@@ -82,6 +84,16 @@ class _ControllerScreenState extends State<ControllerScreen>
     (context, callbacks) => ClassicJoystick(callbacks: callbacks),
     (context, callbacks) => ModernJoystick(callbacks: callbacks),
     (context, callbacks) => MinimalJoystick(callbacks: callbacks),
+    (context, callbacks) => NeoJoystick(callbacks: callbacks),
+    (context, callbacks) => ArcadeJoystick(callbacks: callbacks),
+  ];
+
+  final List<String> joystickNames = [
+    'Classic',
+    'Modern',
+    'Minimal',
+    'Neo',
+    'Arcade',
   ];
 
   @override
@@ -98,45 +110,26 @@ class _ControllerScreenState extends State<ControllerScreen>
   }
 
   Widget _buildSettingField(String label, String key) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16),
+    return ListTile(
+      title: Text(label),
+      trailing: SizedBox(
+        width: 50,
+        child: TextField(
+          maxLength: 1,
+          controller: TextEditingController(text: buttonChars[key]),
+          onChanged: (value) async {
+            if (value.isNotEmpty) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString(key, value.toUpperCase());
+              setState(() {
+                buttonChars[key] = value.toUpperCase();
+              });
+            }
+          },
+          decoration: const InputDecoration(
+            counterText: "",
           ),
-          SizedBox(
-            width: 60,
-            child: TextField(
-              controller: TextEditingController(
-                  text: buttonChars[key]),
-              maxLength: 1,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-              decoration: InputDecoration(
-                counterText: '',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 8,
-                ),
-              ),
-              onChanged: (value) async {
-                if (value.isNotEmpty) {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString(key, value.toUpperCase());
-                  setState(() {
-                    buttonChars[key] = value.toUpperCase();
-                  });
-                }
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -253,24 +246,59 @@ class _ControllerScreenState extends State<ControllerScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
         title: const Text('Select Joystick Style'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(
-              joystickStyles.length,
-              (index) => ListTile(
-                leading: Radio<int>(
-                  value: index,
-                  groupValue: selectedJoystickStyle,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedJoystickStyle = value!;
-                      Navigator.pop(context);
-                    });
-                  },
+        content: SizedBox(
+          width: 300,
+          child: GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 1.5,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: joystickStyles.length,
+            itemBuilder: (context, index) => InkWell(
+              onTap: () {
+                setState(() {
+                  selectedJoystickStyle = index;
+                  saveJoystickStyle(index);
+                });
+                Navigator.pop(context);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selectedJoystickStyle == index
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.transparent,
+                    width: 2,
+                  ),
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                    ],
+                  ),
                 ),
-                title: Text('Style ${index + 1}'),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.gamepad,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      joystickNames[index],
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

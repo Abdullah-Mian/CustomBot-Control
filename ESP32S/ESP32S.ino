@@ -6,7 +6,7 @@ const char *ssid = "Redmi 9T";     // Replace with your hotspot SSID
 const char *password = "68986898"; // Replace with your hotspot password
 
 // Server details
-const char *host = "10.10.173.239"; // Replace with the IP shown in the app
+const char *host = "192.168.18.39"; // Replace with the IP shown in the app
 const int port = 5000;
 
 // Motor control pins for L298N
@@ -67,14 +67,16 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     if (length == 1)
     { // We expect single character commands
       char command = payload[0];
-
       switch (command)
       {
       case 'W':
         forward();
         break;
-      case 'S':
+      case 'B':
         backward();
+        break;
+      case 'S':
+        stopMotors();
         break;
       case 'A':
         left();
@@ -82,9 +84,11 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
       case 'D':
         right();
         break;
-      case 'X': /* Action 1 */
+      case 'X':
+        forward();
         break;
-      case 'Y': /* Action 2 */
+      case 'Y':
+        backward();
         break;
       default:
         stopMotors();
