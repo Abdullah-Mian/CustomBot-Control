@@ -28,9 +28,9 @@ class ArcadeJoystick extends BaseJoystick {
           final angle = (atan2(position.dy - center.dy, position.dx - center.dx) * 180 / pi + 360) % 360;
           
           if (angle >= 315 || angle < 45) callbacks['onRight']!();
-          else if (angle >= 45 && angle < 135) callbacks['onForward']!();
+          else if (angle >= 45 && angle < 135) callbacks['onBackward']!();
           else if (angle >= 135 && angle < 225) callbacks['onLeft']!();
-          else if (angle >= 225 && angle < 315) callbacks['onBackward']!();
+          else if (angle >= 225 && angle < 315) callbacks['onForward']!();
         },
         onPanEnd: (_) => callbacks['onRelease']?.call(),
         onPanCancel: () => callbacks['onRelease']?.call(),

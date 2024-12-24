@@ -13,6 +13,9 @@ import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
+import 'package:custombot_control/small_buttons_joystick.dart';
+import 'package:custombot_control/close_buttons_joystick.dart';
+import 'package:custombot_control/distant_buttons_joystick.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,6 +89,9 @@ class _ControllerScreenState extends State<ControllerScreen>
     (context, callbacks) => MinimalJoystick(callbacks: callbacks),
     (context, callbacks) => NeoJoystick(callbacks: callbacks),
     (context, callbacks) => ArcadeJoystick(callbacks: callbacks),
+    (context, callbacks) => SmallButtonsJoystick(callbacks: callbacks),
+    (context, callbacks) => CloseButtonsJoystick(callbacks: callbacks),
+    (context, callbacks) => DistantButtonsJoystick(callbacks: callbacks),
   ];
 
   final List<String> joystickNames = [
@@ -94,6 +100,9 @@ class _ControllerScreenState extends State<ControllerScreen>
     'Minimal',
     'Neo',
     'Arcade',
+    'SmallButtons',
+    'CloseButtons',
+    'DistantButtons',
   ];
 
   @override
