@@ -1,24 +1,32 @@
-import 'package:custombot_control/action_button.dart';
-import 'package:custombot_control/classic_joystick.dart';
-import 'package:custombot_control/minimal_joystick.dart';
-import 'package:custombot_control/modern_joystick.dart';
-import 'package:custombot_control/neo_joystick.dart';
-import 'package:custombot_control/arcade_joystick.dart';
+import 'package:custombot_control/Joysticks/action_button.dart';
+import 'package:custombot_control/Joysticks/classic_joystick.dart';
+import 'package:custombot_control/Joysticks/minimal_joystick.dart';
+import 'package:custombot_control/Joysticks/modern_joystick.dart';
+import 'package:custombot_control/Joysticks/neo_joystick.dart';
+import 'package:custombot_control/Joysticks/arcade_joystick.dart';
+import 'package:custombot_control/Joysticks/small_buttons_joystick.dart';
+import 'package:custombot_control/Joysticks/close_buttons_joystick.dart';
+import 'package:custombot_control/Joysticks/distant_buttons_joystick.dart';
+import 'package:custombot_control/screens/login_screen.dart';
+import 'package:custombot_control/services/auth_service.dart';
+import 'package:custombot_control/services/firebase_api.dart';
+import 'package:custombot_control/services/firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:custombot_control/small_buttons_joystick.dart';
-import 'package:custombot_control/close_buttons_joystick.dart';
-import 'package:custombot_control/distant_buttons_joystick.dart';
+import 'dart:io';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await FirebaseApi().initializeNotifications();
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -44,7 +52,8 @@ class MyApp extends StatelessWidget {
         cardTheme: CardTheme(
           color: const Color(0xFF2D2D2D),
           elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
       home: const ControllerScreen(),
@@ -72,10 +81,11 @@ class _ControllerScreenState extends State<ControllerScreen>
   String manualIp = '';
   HttpServer? wsServer;
   List<WebSocketChannel> connectedClients = [];
+  final AuthService _authService = AuthService();
 
   Map<String, String> buttonChars = {
     'forward': 'W',
-    'backward': 'S',
+    'backward': 'B',
     'left': 'A',
     'right': 'D',
     'action1': 'X',
@@ -287,8 +297,14 @@ class _ControllerScreenState extends State<ControllerScreen>
                   ),
                   gradient: LinearGradient(
                     colors: [
-                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                      Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withAlpha((0.1 * 255).toInt()),
+                      Theme.of(context)
+                          .colorScheme
+                          .secondary
+                          .withAlpha((0.1 * 255).toInt()),
                     ],
                   ),
                 ),
@@ -318,7 +334,7 @@ class _ControllerScreenState extends State<ControllerScreen>
 
   Future<void> initializeWebSocket() async {
     if (!isServerOn) return;
-    
+
     try {
       // Create WebSocket server
       var handler = webSocketHandler((WebSocketChannel socket) {
@@ -345,7 +361,8 @@ class _ControllerScreenState extends State<ControllerScreen>
       });
 
       wsServer = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-      print('WebSocket server running on ws://${wsServer!.address.address}:$port');
+      print(
+          'WebSocket server running on ws://${wsServer!.address.address}:$port');
     } catch (e) {
       print('Error starting WebSocket server: $e');
       setState(() {
@@ -358,7 +375,7 @@ class _ControllerScreenState extends State<ControllerScreen>
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -368,8 +385,8 @@ class _ControllerScreenState extends State<ControllerScreen>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                colorScheme.primaryContainer.withOpacity(0.3),
-                colorScheme.secondaryContainer.withOpacity(0.3),
+                colorScheme.primaryContainer.withAlpha((0.3 * 255).toInt()),
+                colorScheme.secondaryContainer.withAlpha((0.3 * 255).toInt()),
               ],
             ),
             borderRadius: BorderRadius.circular(20),
@@ -391,6 +408,35 @@ class _ControllerScreenState extends State<ControllerScreen>
           ),
         ),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.download),
+          onPressed: getIPAddress,
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(_authService.currentUser != null
+                ? Icons.person_remove_outlined
+                : Icons.person_sharp),
+            onPressed: () {
+              if (_authService.currentUser == null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginScreen()),
+                ).then((_) {
+                  setState(() {});
+                });
+              } else {
+                _authService.signOut().then((_) {
+                  setState(() {});
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.leak_add_sharp),
+            onPressed: () => {},
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -401,7 +447,8 @@ class _ControllerScreenState extends State<ControllerScreen>
               child: Card(
                 margin: const EdgeInsets.all(16),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -442,7 +489,7 @@ class _ControllerScreenState extends State<ControllerScreen>
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
-                    colorScheme.primaryContainer.withOpacity(0.2),
+                    colorScheme.primaryContainer.withAlpha((0.2 * 255).toInt()),
                     Colors.transparent,
                   ],
                 ),
@@ -468,7 +515,8 @@ class _ControllerScreenState extends State<ControllerScreen>
               decoration: BoxDecoration(
                 gradient: RadialGradient(
                   colors: [
-                    colorScheme.secondaryContainer.withOpacity(0.2),
+                    colorScheme.secondaryContainer
+                        .withAlpha((0.2 * 255).toInt()),
                     Colors.transparent,
                   ],
                 ),

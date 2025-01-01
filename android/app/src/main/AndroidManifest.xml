@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     
     <application
-        android:label="custombot_control"
+        android:label="IOT Joystick"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
