@@ -52,11 +52,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDtUtESSe_HMLMQaNlLXszfJiohE0lTkAs',
-    appId: '1:823881250014:android:ab29240dd9067442efbe4f',
-    messagingSenderId: '823881250014',
-    projectId: 'custombotcontrol-c2a8f',
-    storageBucket: 'custombotcontrol-c2a8f.firebasestorage.app',
-  );
+  // static const FirebaseOptions android = FirebaseOptions(
+  //   apiKey: 'wkjdbflaskjbclasdblcfkjasnd;ckas;dkjfn',
+  //   appId: 's,dcbalsfnc;sdnc;lisd?clNSLCKn',
+  //   messagingSenderId: 'DS.CJNSADLKNDSKJL',
+  //   projectId: 'S,DJCLSKJDNCLSKDJN',
+  //   storageBucket: 'S,CNzldmcLSJn:cio',
+  // );
 }

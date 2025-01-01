@@ -9,6 +9,6 @@ class FirebaseApi {
     await _firebaseMessaging.requestPermission();
     //get the token
     final token = await _firebaseMessaging.getToken();
-    print('Token: $token');
+    // print('Token: $token');
   }
 }
